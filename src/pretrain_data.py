@@ -129,6 +129,28 @@ class P5_Amazon_Dataset(Dataset):
         
         self.user_id2name = load_pickle(os.path.join('data', split, 'user_id2name.pkl'))
         
+        # Helper: safe metadata lookup accepting either original item key (asin) or internal id
+        def _get_meta_func(item_key):
+            try:
+                # direct lookup (asin or movielens item id string)
+                if item_key in self.meta_dict:
+                    return self.meta_data[self.meta_dict[item_key]]
+                # if key is an internal id mapping in id2item
+                if hasattr(self, 'id2item') and item_key in self.id2item:
+                    orig = self.id2item[item_key]
+                    if orig in self.meta_dict:
+                        return self.meta_data[self.meta_dict[orig]]
+                # try string form
+                k = str(item_key)
+                if k in self.meta_dict:
+                    return self.meta_data[self.meta_dict[k]]
+            except Exception:
+                pass
+            return {}
+
+        # attach helper to instance for use elsewhere
+        self._get_meta = _get_meta_func
+        
         # Load metadata - handle both Amazon format (dict with 'asin') and MovieLens format (dict with numeric keys)
         is_movielens = split in ['ml100k', 'ml1m', 'ml10m', 'ml20m']
         
@@ -272,10 +294,8 @@ class P5_Amazon_Dataset(Dataset):
                 source_text = task_template['source'].format(self.user2id[rating_datum['reviewerID']], self.item2id[rating_datum['asin']])
                 target_text = task_template['target'].format(self.gaussian_sampling(rating_datum))
             elif task_template['id'] == '1-2':
-                if rating_datum['asin'] in self.meta_dict and 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[rating_datum['asin']]]['title']
-                else:
-                    title = 'unknown title'
+                meta = self._get_meta(rating_datum['asin'])
+                title = meta.get('title', 'unknown title')
                 source_text = task_template['source'].format(self.user2id[rating_datum['reviewerID']], title) 
                 target_text = task_template['target'].format(self.gaussian_sampling(rating_datum))
             elif task_template['id'] == '1-3':
@@ -295,10 +315,8 @@ class P5_Amazon_Dataset(Dataset):
                 else:
                     target_text = task_template['target'].format('dislike')
             elif task_template['id'] == '1-5':
-                if rating_datum['asin'] in self.meta_dict and 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[rating_datum['asin']]]['title']
-                else:
-                    title = 'unknown title'
+                meta = self._get_meta(rating_datum['asin'])
+                title = meta.get('title', 'unknown title')
                 source_text = task_template['source'].format(self.user2id[rating_datum['reviewerID']], self.item2id[rating_datum['asin']], title)
                 target_text = task_template['target'].format(self.gaussian_sampling(rating_datum))
             elif task_template['id'] == '1-6':
@@ -313,10 +331,8 @@ class P5_Amazon_Dataset(Dataset):
                     user_desc = rating_datum['reviewerName']
                 else:
                     user_desc = rating_datum['reviewerID']
-                if rating_datum['asin'] in self.meta_dict and 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[rating_datum['asin']]]['title']
-                else:
-                    title = 'unknown title'
+                meta = self._get_meta(rating_datum['asin'])
+                title = meta.get('title', 'unknown title')
                 source_text = task_template['source'].format(user_desc, title)
                 target_text = task_template['target'].format(self.gaussian_sampling(rating_datum))
             elif task_template['id'] == '1-8':
@@ -325,11 +341,8 @@ class P5_Amazon_Dataset(Dataset):
                     user_desc = rating_datum['reviewerName']
                 else:
                     user_desc = rating_datum['reviewerID']
-                # Safe metadata access
-                if rating_datum['asin'] in self.meta_dict and 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[rating_datum['asin']]]['title']
-                else:
-                    title = 'unknown title'
+                meta = self._get_meta(rating_datum['asin'])
+                title = meta.get('title', 'unknown title')
                 if rand_prob > 0.5:
                     source_text = task_template['source'].format(user_desc, int(rating_datum['overall']), title)
                     target_text = task_template['target'].format('yes')
@@ -343,10 +356,8 @@ class P5_Amazon_Dataset(Dataset):
                     user_desc = rating_datum['reviewerName']
                 else:
                     user_desc = rating_datum['reviewerID']
-                if rating_datum['asin'] in self.meta_dict and 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[rating_datum['asin']]]['title']
-                else:
-                    title = 'unknown title'
+                meta = self._get_meta(rating_datum['asin'])
+                title = meta.get('title', 'unknown title')
                 source_text = task_template['source'].format(user_desc, title)
                 if int(rating_datum['overall']) >= 4:
                     target_text = task_template['target'].format('like')
@@ -357,10 +368,8 @@ class P5_Amazon_Dataset(Dataset):
                     user_desc = rating_datum['reviewerName']
                 else:
                     user_desc = rating_datum['reviewerID']
-                if rating_datum['asin'] in self.meta_dict and 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[rating_datum['asin']]]['title']
-                else:
-                    title = 'unknown title'
+                meta = self._get_meta(rating_datum['asin'])
+                title = meta.get('title', 'unknown title')
                 source_text = task_template['source'].format(user_desc, title)
                 target_text = task_template['target'].format(self.gaussian_sampling(rating_datum))
             else:
@@ -750,33 +759,27 @@ class P5_Amazon_Dataset(Dataset):
             task_idx = random.randint(0, len(task_candidates)-1) # random choose the task index for task_candidates
             task_template = self.all_tasks['explanation'][task_candidates[task_idx]]
             assert task_template['task'] == 'explanation'
-            
+
             if task_template['id'] == '3-1':
-                if 'title' in self.meta_data[self.meta_dict[exp_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[exp_datum['asin']]]['title']
-                else:
-                    title = 'unknown title'
+                meta = self._get_meta(exp_datum['asin'])
+                title = meta.get('title', 'unknown title')
                 source_text = task_template['source'].format(self.user2id[exp_datum['reviewerID']], title)
                 target_text = task_template['target'].format(exp_datum['explanation'])
             elif task_template['id'] == '3-2':
-                source_text = task_template['source'].format(exp_datum['summary'], self.user2id[exp_datum['reviewerID']], self.item2id[exp_datum['asin']]) 
+                source_text = task_template['source'].format(exp_datum.get('summary',''), self.user2id[exp_datum['reviewerID']], self.item2id.get(exp_datum['asin'], exp_datum.get('asin')))
                 target_text = task_template['target'].format(exp_datum['explanation'])
             elif task_template['id'] == '3-3':
-                if 'title' in self.meta_data[self.meta_dict[exp_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[exp_datum['asin']]]['title']
-                else:
-                    title = 'unknown title'
-                source_text = task_template['source'].format(self.user2id[exp_datum['reviewerID']], int(exp_datum['overall']), title)
+                meta = self._get_meta(exp_datum['asin'])
+                title = meta.get('title', 'unknown title')
+                source_text = task_template['source'].format(self.user2id[exp_datum['reviewerID']], int(exp_datum.get('overall',0)), title)
                 target_text = task_template['target'].format(exp_datum['explanation'])
             elif task_template['id'] == '3-4':
                 if 'reviewerName' in exp_datum:
                     user_desc = exp_datum['reviewerName']
                 else:
                     user_desc = exp_datum['reviewerID']
-                if 'title' in self.meta_data[self.meta_dict[exp_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[exp_datum['asin']]]['title']
-                else:
-                    title = 'unknown title'
+                meta = self._get_meta(exp_datum['asin'])
+                title = meta.get('title', 'unknown title')
                 source_text = task_template['source'].format(user_desc, title)
                 target_text = task_template['target'].format(exp_datum['explanation'])
             elif task_template['id'] == '3-5':
@@ -784,56 +787,50 @@ class P5_Amazon_Dataset(Dataset):
                     user_desc = exp_datum['reviewerName']
                 else:
                     user_desc = exp_datum['reviewerID']
-                if 'title' in self.meta_data[self.meta_dict[exp_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[exp_datum['asin']]]['title']
-                else:
-                    title = 'unknown title'
-                source_text = task_template['source'].format(exp_datum['summary'], user_desc, title)
+                meta = self._get_meta(exp_datum['asin'])
+                title = meta.get('title', 'unknown title')
+                source_text = task_template['source'].format(exp_datum.get('summary',''), user_desc, title)
                 target_text = task_template['target'].format(exp_datum['explanation'])
             elif task_template['id'] == '3-6':
                 if 'reviewerName' in exp_datum:
                     user_desc = exp_datum['reviewerName']
                 else:
                     user_desc = exp_datum['reviewerID']
-                source_text = task_template['source'].format(user_desc, int(exp_datum['overall']), self.item2id[exp_datum['asin']])
+                source_text = task_template['source'].format(user_desc, int(exp_datum.get('overall',0)), self.item2id.get(exp_datum['asin'], exp_datum.get('asin')))
                 target_text = task_template['target'].format(exp_datum['explanation'])
             elif task_template['id'] == '3-7':
-                source_text = task_template['source'].format(exp_datum['feature'], self.user2id[exp_datum['reviewerID']], self.item2id[exp_datum['asin']])
+                source_text = task_template['source'].format(exp_datum.get('feature',''), self.user2id[exp_datum['reviewerID']], self.item2id.get(exp_datum['asin'], exp_datum.get('asin')))
                 target_text = task_template['target'].format(self.gaussian_sampling(exp_datum), exp_datum['explanation'])
             elif task_template['id'] == '3-8':
                 if 'reviewerName' in exp_datum:
                     user_desc = exp_datum['reviewerName']
                 else:
                     user_desc = exp_datum['reviewerID']
-                source_text = task_template['source'].format(user_desc, self.item2id[exp_datum['asin']])
+                source_text = task_template['source'].format(user_desc, self.item2id.get(exp_datum['asin'], exp_datum.get('asin')))
                 target_text = task_template['target'].format(self.gaussian_sampling(exp_datum), exp_datum['explanation'])
             elif task_template['id'] == '3-9':
-                if 'title' in self.meta_data[self.meta_dict[exp_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[exp_datum['asin']]]['title']
-                else:
-                    title = 'unknown title'
-                source_text = task_template['source'].format(exp_datum['feature'], self.user2id[exp_datum['reviewerID']], title)
+                meta = self._get_meta(exp_datum['asin'])
+                title = meta.get('title', 'unknown title')
+                source_text = task_template['source'].format(exp_datum.get('feature',''), self.user2id[exp_datum['reviewerID']], title)
                 target_text = task_template['target'].format(exp_datum['explanation'])
             elif task_template['id'] == '3-10':
                 if 'reviewerName' in exp_datum:
                     user_desc = exp_datum['reviewerName']
                 else:
                     user_desc = exp_datum['reviewerID']
-                if 'title' in self.meta_data[self.meta_dict[exp_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[exp_datum['asin']]]['title']
-                else:
-                    title = 'unknown title'
-                source_text = task_template['source'].format(exp_datum['feature'], user_desc, title)
+                meta = self._get_meta(exp_datum['asin'])
+                title = meta.get('title', 'unknown title')
+                source_text = task_template['source'].format(exp_datum.get('feature',''), user_desc, title)
                 target_text = task_template['target'].format(exp_datum['explanation'])
             elif task_template['id'] == '3-11':
-                source_text = task_template['source'].format(exp_datum['feature'], int(exp_datum['overall']), self.user2id[exp_datum['reviewerID']], self.item2id[exp_datum['asin']])
+                source_text = task_template['source'].format(exp_datum.get('feature',''), int(exp_datum.get('overall',0)), self.user2id[exp_datum['reviewerID']], self.item2id.get(exp_datum['asin'], exp_datum.get('asin')))
                 target_text = task_template['target'].format(exp_datum['explanation'])
             elif task_template['id'] == '3-12':
                 if 'reviewerName' in exp_datum:
                     user_desc = exp_datum['reviewerName']
                 else:
                     user_desc = exp_datum['reviewerID']
-                source_text = task_template['source'].format(exp_datum['feature'], int(exp_datum['overall']), user_desc, self.item2id[exp_datum['asin']])
+                source_text = task_template['source'].format(exp_datum.get('feature',''), int(exp_datum.get('overall',0)), user_desc, self.item2id.get(exp_datum['asin'], exp_datum.get('asin')))
                 target_text = task_template['target'].format(exp_datum['explanation'])
             else:
                 raise NotImplementedError
@@ -846,25 +843,29 @@ class P5_Amazon_Dataset(Dataset):
             assert task_template['task'] == 'review'
             
             if task_template['id'] == '4-1':
-                source_text = task_template['source'].format(self.user2id[review_datum['reviewerID']], review_datum['reviewText'])
-                target_text = task_template['target'].format(review_datum['summary'])
+                source_text = task_template['source'].format(self.user2id[review_datum['reviewerID']], review_datum.get('reviewText',''))
+                target_text = task_template['target'].format(review_datum.get('summary',''))
             elif task_template['id'] == '4-2':
-                source_text = task_template['source'].format(self.user2id[review_datum['reviewerID']], review_datum['reviewText'])
-                target_text = task_template['target'].format(int(review_datum['overall']))
+                if 'reviewerName' in review_datum:
+                    user_desc = review_datum['reviewerName']
+                else:
+                    user_desc = review_datum['reviewerID']
+                source_text = task_template['source'].format(user_desc, review_datum.get('reviewText',''))
+                target_text = task_template['target'].format(review_datum.get('summary',''))
             elif task_template['id'] == '4-3':
                 if 'reviewerName' in review_datum:
                     user_desc = review_datum['reviewerName']
                 else:
                     user_desc = review_datum['reviewerID']
-                source_text = task_template['source'].format(user_desc, review_datum['reviewText'])
-                target_text = task_template['target'].format(review_datum['summary'])
+                source_text = task_template['source'].format(user_desc, review_datum.get('reviewText',''))
+                target_text = task_template['target'].format(review_datum.get('summary',''))
             elif task_template['id'] == '4-4':
                 if 'reviewerName' in review_datum:
                     user_desc = review_datum['reviewerName']
                 else:
                     user_desc = review_datum['reviewerID']
-                source_text = task_template['source'].format(user_desc, review_datum['reviewText'])
-                target_text = task_template['target'].format(int(review_datum['overall']))
+                source_text = task_template['source'].format(user_desc, review_datum.get('reviewText',''))
+                target_text = task_template['target'].format(int(review_datum.get('overall',0)))
             else:
                 raise NotImplementedError
             
@@ -911,7 +912,7 @@ class P5_Amazon_Dataset(Dataset):
             elif task_template['id'] == '5-2':
                 rand_prob = random.random()
                 if rand_prob > 0.5:
-                    source_text = task_template['source'].format(target_item, user_desc)
+                    source_text = task_template['source'].format(user_desc, target_item)
                     target_text = task_template['target'].format('yes')
                 else:
                     user_seq = self.user_items[user_id]
@@ -925,15 +926,13 @@ class P5_Amazon_Dataset(Dataset):
                         sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
                         candidate_samples.extend(sample_ids)
                     candidate_samples = candidate_samples[:candidate_num]
-                    source_text = task_template['source'].format(candidate_samples[0], user_desc)
+                    source_text = task_template['source'].format(user_desc, candidate_samples[0])
                     target_text = task_template['target'].format('no')
             elif task_template['id'] == '5-3':
                 rand_prob = random.random()
                 if rand_prob > 0.5:
-                    if 'title' in self.meta_data[self.meta_dict[self.id2item[target_item]]]:
-                        title = self.meta_data[self.meta_dict[self.id2item[target_item]]]['title']
-                    else:
-                        title = 'unknown title'
+                    meta = self._get_meta(self.id2item[target_item])
+                    title = meta.get('name', 'unknown name')
                     source_text = task_template['source'].format(user_desc, title)
                     target_text = task_template['target'].format('yes')
                 else:
@@ -948,19 +947,15 @@ class P5_Amazon_Dataset(Dataset):
                         sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
                         candidate_samples.extend(sample_ids)
                     candidate_samples = candidate_samples[:candidate_num]
-                    if 'title' in self.meta_data[self.meta_dict[self.id2item[candidate_samples[0]]]]:
-                        title = self.meta_data[self.meta_dict[self.id2item[candidate_samples[0]]]]['title']
-                    else:
-                        title = 'unknown title'
+                    meta = self._get_meta(self.id2item[candidate_samples[0]])
+                    title = meta.get('name', 'unknown name')
                     source_text = task_template['source'].format(user_desc, title)
                     target_text = task_template['target'].format('no')
             elif task_template['id'] == '5-4':
                 rand_prob = random.random()
                 if rand_prob > 0.5:
-                    if 'title' in self.meta_data[self.meta_dict[self.id2item[target_item]]]:
-                        title = self.meta_data[self.meta_dict[self.id2item[target_item]]]['title']
-                    else:
-                        title = 'unknown title'
+                    meta = self._get_meta(self.id2item[target_item])
+                    title = meta.get('name', 'unknown name')
                     source_text = task_template['source'].format(user_id, title)
                     target_text = task_template['target'].format('yes')
                 else:
@@ -975,10 +970,8 @@ class P5_Amazon_Dataset(Dataset):
                         sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
                         candidate_samples.extend(sample_ids)
                     candidate_samples = candidate_samples[:candidate_num]
-                    if 'title' in self.meta_data[self.meta_dict[self.id2item[candidate_samples[0]]]]:
-                        title = self.meta_data[self.meta_dict[self.id2item[candidate_samples[0]]]]['title']
-                    else:
-                        title = 'unknown title'
+                    meta = self._get_meta(self.id2item[candidate_samples[0]])
+                    title = meta.get('name', 'unknown name')
                     source_text = task_template['source'].format(user_id, title)
                     target_text = task_template['target'].format('no')
             elif task_template['id'] == '5-5' or task_template['id'] == '5-6':
@@ -1374,10 +1367,8 @@ class P5_Yelp_Dataset(Dataset):
                 source_text = task_template['source'].format(self.user2id[rating_datum['reviewerID']], self.item2id[rating_datum['asin']])
                 target_text = task_template['target'].format(self.gaussian_sampling(rating_datum))
             elif task_template['id'] == '1-2':
-                if 'name' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[rating_datum['asin']]]['name']
-                else:
-                    title = 'unknown name'
+                meta = self._get_meta(rating_datum['asin'])
+                title = meta.get('name', 'unknown name')
                 source_text = task_template['source'].format(self.user2id[rating_datum['reviewerID']], title) 
                 target_text = task_template['target'].format(self.gaussian_sampling(rating_datum))
             elif task_template['id'] == '1-3':
@@ -1397,10 +1388,8 @@ class P5_Yelp_Dataset(Dataset):
                 else:
                     target_text = task_template['target'].format('dislike')
             elif task_template['id'] == '1-5':
-                if 'name' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[rating_datum['asin']]]['name']
-                else:
-                    title = 'unknown name'
+                meta = self._get_meta(rating_datum['asin'])
+                title = meta.get('name', 'unknown name')
                 source_text = task_template['source'].format(self.user2id[rating_datum['reviewerID']], self.item2id[rating_datum['asin']], title)
                 target_text = task_template['target'].format(self.gaussian_sampling(rating_datum))
             elif task_template['id'] == '1-6':
@@ -1415,10 +1404,8 @@ class P5_Yelp_Dataset(Dataset):
                     user_desc = self.user_data[self.user_meta_dict[rating_datum['reviewerID']]]['name']
                 else:
                     user_desc = rating_datum['reviewerID']
-                if 'name' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[rating_datum['asin']]]['name']
-                else:
-                    title = 'unknown name'
+                meta = self._get_meta(rating_datum['asin'])
+                title = meta.get('name', 'unknown name')
                 source_text = task_template['source'].format(user_desc, title)
                 target_text = task_template['target'].format(self.gaussian_sampling(rating_datum))
             elif task_template['id'] == '1-8':
@@ -1427,10 +1414,8 @@ class P5_Yelp_Dataset(Dataset):
                     user_desc = self.user_data[self.user_meta_dict[rating_datum['reviewerID']]]['name']
                 else:
                     user_desc = rating_datum['reviewerID']
-                if 'name' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[rating_datum['asin']]]['name']
-                else:
-                    title = 'unknown name'
+                meta = self._get_meta(rating_datum['asin'])
+                title = meta.get('name', 'unknown name')
                 if rand_prob > 0.5:
                     source_text = task_template['source'].format(user_desc, int(rating_datum['overall']), title)
                     target_text = task_template['target'].format('yes')
@@ -1444,10 +1429,8 @@ class P5_Yelp_Dataset(Dataset):
                     user_desc = self.user_data[self.user_meta_dict[rating_datum['reviewerID']]]['name']
                 else:
                     user_desc = rating_datum['reviewerID']
-                if 'name' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[rating_datum['asin']]]['name']
-                else:
-                    title = 'unknown name'
+                meta = self._get_meta(rating_datum['asin'])
+                title = meta.get('name', 'unknown name')
                 source_text = task_template['source'].format(user_desc, title)
                 if int(rating_datum['overall']) >= 4:
                     target_text = task_template['target'].format('like')
@@ -1458,10 +1441,8 @@ class P5_Yelp_Dataset(Dataset):
                     user_desc = self.user_data[self.user_meta_dict[rating_datum['reviewerID']]]['name']
                 else:
                     user_desc = rating_datum['reviewerID']
-                if 'name' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[rating_datum['asin']]]['name']
-                else:
-                    title = 'unknown name'
+                meta = self._get_meta(rating_datum['asin'])
+                title = meta.get('name', 'unknown name')
                 source_text = task_template['source'].format(user_desc, title)
                 target_text = task_template['target'].format(self.gaussian_sampling(rating_datum))
             else:
@@ -1658,17 +1639,13 @@ class P5_Yelp_Dataset(Dataset):
             assert task_template['task'] == 'explanation'
             
             if task_template['id'] == '3-1':
-                if 'name' in self.meta_data[self.meta_dict[exp_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[exp_datum['asin']]]['name']
-                else:
-                    title = 'unknown name'
+                meta = self._get_meta(exp_datum['asin'])
+                title = meta.get('name', 'unknown name')
                 source_text = task_template['source'].format(self.user2id[exp_datum['reviewerID']], title)
                 target_text = task_template['target'].format(exp_datum['explanation'])
             elif task_template['id'] == '3-2':
-                if 'name' in self.meta_data[self.meta_dict[exp_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[exp_datum['asin']]]['name']
-                else:
-                    title = 'unknown name'
+                meta = self._get_meta(exp_datum['asin'])
+                title = meta.get('name', 'unknown name')
                 source_text = task_template['source'].format(self.user2id[exp_datum['reviewerID']], int(exp_datum['overall']), title)
                 target_text = task_template['target'].format(exp_datum['explanation'])
             elif task_template['id'] == '3-3':
@@ -1676,10 +1653,8 @@ class P5_Yelp_Dataset(Dataset):
                     user_desc = self.user_data[self.user_meta_dict[exp_datum['reviewerID']]]['name']
                 else:
                     user_desc = exp_datum['reviewerID']
-                if 'name' in self.meta_data[self.meta_dict[exp_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[exp_datum['asin']]]['name']
-                else:
-                    title = 'unknown name'
+                meta = self._get_meta(exp_datum['asin'])
+                title = meta.get('name', 'unknown name')
                 source_text = task_template['source'].format(user_desc, title)
                 target_text = task_template['target'].format(exp_datum['explanation'])
             elif task_template['id'] == '3-4':
@@ -1700,10 +1675,8 @@ class P5_Yelp_Dataset(Dataset):
                 source_text = task_template['source'].format(user_desc, self.item2id[exp_datum['asin']])
                 target_text = task_template['target'].format(self.gaussian_sampling(exp_datum), exp_datum['explanation'])
             elif task_template['id'] == '3-7':
-                if 'name' in self.meta_data[self.meta_dict[exp_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[exp_datum['asin']]]['name']
-                else:
-                    title = 'unknown name'
+                meta = self._get_meta(exp_datum['asin'])
+                title = meta.get('name', 'unknown name')
                 source_text = task_template['source'].format(exp_datum['feature'], self.user2id[exp_datum['reviewerID']], title)
                 target_text = task_template['target'].format(exp_datum['explanation'])
             elif task_template['id'] == '3-8':
@@ -1711,10 +1684,8 @@ class P5_Yelp_Dataset(Dataset):
                     user_desc = self.user_data[self.user_meta_dict[exp_datum['reviewerID']]]['name']
                 else:
                     user_desc = exp_datum['reviewerID']
-                if 'name' in self.meta_data[self.meta_dict[exp_datum['asin']]]:
-                    title = self.meta_data[self.meta_dict[exp_datum['asin']]]['name']
-                else:
-                    title = 'unknown name'
+                meta = self._get_meta(exp_datum['asin'])
+                title = meta.get('name', 'unknown name')
                 source_text = task_template['source'].format(exp_datum['feature'], user_desc, title)
                 target_text = task_template['target'].format(exp_datum['explanation'])
             elif task_template['id'] == '3-9':
@@ -1815,10 +1786,8 @@ class P5_Yelp_Dataset(Dataset):
             elif task_template['id'] == '5-3':
                 rand_prob = random.random()
                 if rand_prob > 0.5:
-                    if 'name' in self.meta_data[self.meta_dict[self.id2item[target_item]]]:
-                        title = self.meta_data[self.meta_dict[self.id2item[target_item]]]['name']
-                    else:
-                        title = 'unknown name'
+                    meta = self._get_meta(self.id2item[target_item])
+                    title = meta.get('name', 'unknown name')
                     source_text = task_template['source'].format(user_desc, title)
                     target_text = task_template['target'].format('yes')
                 else:
@@ -1833,19 +1802,15 @@ class P5_Yelp_Dataset(Dataset):
                         sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
                         candidate_samples.extend(sample_ids)
                     candidate_samples = candidate_samples[:candidate_num]
-                    if 'name' in self.meta_data[self.meta_dict[self.id2item[candidate_samples[0]]]]:
-                        title = self.meta_data[self.meta_dict[self.id2item[candidate_samples[0]]]]['name']
-                    else:
-                        title = 'unknown name'
+                    meta = self._get_meta(self.id2item[candidate_samples[0]])
+                    title = meta.get('name', 'unknown name')
                     source_text = task_template['source'].format(user_desc, title)
                     target_text = task_template['target'].format('no')
             elif task_template['id'] == '5-4':
                 rand_prob = random.random()
                 if rand_prob > 0.5:
-                    if 'name' in self.meta_data[self.meta_dict[self.id2item[target_item]]]:
-                        title = self.meta_data[self.meta_dict[self.id2item[target_item]]]['name']
-                    else:
-                        title = 'unknown name'
+                    meta = self._get_meta(self.id2item[target_item])
+                    title = meta.get('name', 'unknown name')
                     source_text = task_template['source'].format(user_id, title)
                     target_text = task_template['target'].format('yes')
                 else:
@@ -1860,10 +1825,8 @@ class P5_Yelp_Dataset(Dataset):
                         sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
                         candidate_samples.extend(sample_ids)
                     candidate_samples = candidate_samples[:candidate_num]
-                    if 'name' in self.meta_data[self.meta_dict[self.id2item[candidate_samples[0]]]]:
-                        title = self.meta_data[self.meta_dict[self.id2item[candidate_samples[0]]]]['name']
-                    else:
-                        title = 'unknown name'
+                    meta = self._get_meta(self.id2item[candidate_samples[0]])
+                    title = meta.get('name', 'unknown name')
                     source_text = task_template['source'].format(user_id, title)
                     target_text = task_template['target'].format('no')
             elif task_template['id'] == '5-5' or task_template['id'] == '5-6':
