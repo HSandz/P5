@@ -51,28 +51,50 @@ class P5_Amazon_Dataset(Dataset):
         
         print('Data sources: ', split.split(','))
         self.mode = mode
+        
+        # MovieLens datasets only have rating data, no reviews or explanations
+        is_movielens = split in ['ml100k', 'ml1m', 'ml10m', 'ml20m']
+        
         if self.mode == 'train':
-            self.review_data = load_pickle(os.path.join('data', split, 'review_splits.pkl'))['train']
-            self.exp_data = load_pickle(os.path.join('data', split, 'exp_splits.pkl'))['train']
-            if self.rating_augment:
-                self.rating_data = load_pickle(os.path.join('data', split, 'rating_splits_augmented.pkl'))['train']
+            if is_movielens:
+                # MovieLens: only load rating_splits.pkl
+                self.rating_data = load_pickle(os.path.join('data', split, 'rating_splits.pkl'))['train']
+                self.review_data = []  # Empty for MovieLens
+                self.exp_data = []     # Empty for MovieLens
             else:
-                self.rating_data = self.review_data
+                # Amazon/Yelp: load review and explanation data
+                self.review_data = load_pickle(os.path.join('data', split, 'review_splits.pkl'))['train']
+                self.exp_data = load_pickle(os.path.join('data', split, 'exp_splits.pkl'))['train']
+                if self.rating_augment:
+                    self.rating_data = load_pickle(os.path.join('data', split, 'rating_splits_augmented.pkl'))['train']
+                else:
+                    self.rating_data = self.review_data
         elif self.mode == 'val':
-            self.review_data = load_pickle(os.path.join('data', split, 'review_splits.pkl'))['val']
-            self.exp_data = load_pickle(os.path.join('data', split, 'exp_splits.pkl'))['val']
-            if self.rating_augment:
-                self.rating_data = load_pickle(os.path.join('data', split, 'rating_splits_augmented.pkl'))['val']
+            if is_movielens:
+                self.rating_data = load_pickle(os.path.join('data', split, 'rating_splits.pkl'))['val']
+                self.review_data = []
+                self.exp_data = []
             else:
-                self.rating_data = self.review_data
+                self.review_data = load_pickle(os.path.join('data', split, 'review_splits.pkl'))['val']
+                self.exp_data = load_pickle(os.path.join('data', split, 'exp_splits.pkl'))['val']
+                if self.rating_augment:
+                    self.rating_data = load_pickle(os.path.join('data', split, 'rating_splits_augmented.pkl'))['val']
+                else:
+                    self.rating_data = self.review_data
         elif self.mode == 'test':
-            self.review_data = load_pickle(os.path.join('data', split, 'review_splits.pkl'))['test']
-            self.exp_data = load_pickle(os.path.join('data', split, 'exp_splits.pkl'))['test']
-            if self.rating_augment:
-                self.rating_data = load_pickle(os.path.join('data', split, 'rating_splits_augmented.pkl'))['test']
+            if is_movielens:
+                self.rating_data = load_pickle(os.path.join('data', split, 'rating_splits.pkl'))['test']
+                self.review_data = []
+                self.exp_data = []
+                self.zeroshot_exp_data = []
             else:
-                self.rating_data = self.review_data
-            self.zeroshot_exp_data = load_pickle(os.path.join('data', 'beauty', 'zeroshot_exp_splits.pkl')) # change to dataset to be transferred (e.g., 'beauty')
+                self.review_data = load_pickle(os.path.join('data', split, 'review_splits.pkl'))['test']
+                self.exp_data = load_pickle(os.path.join('data', split, 'exp_splits.pkl'))['test']
+                if self.rating_augment:
+                    self.rating_data = load_pickle(os.path.join('data', split, 'rating_splits_augmented.pkl'))['test']
+                else:
+                    self.rating_data = self.review_data
+                self.zeroshot_exp_data = load_pickle(os.path.join('data', 'beauty', 'zeroshot_exp_splits.pkl')) # change to dataset to be transferred (e.g., 'beauty')
         else:
             raise NotImplementedError
             

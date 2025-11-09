@@ -296,6 +296,12 @@ with gzip.open(meta_file, 'wt', encoding='utf-8') as f:
     json.dump(meta_data, f)
 print(f"✓ Saved: {meta_file}")
 
+# Create user_id2name mapping (user IDs map to themselves for MovieLens)
+user_id2name = {user_id: user_id for user_id in data_maps['id2user'].values()}
+user_id2name_file = os.path.join(output_dir, 'user_id2name.pkl')
+save_pickle(user_id2name, user_id2name_file)
+print(f"✓ Saved: {user_id2name_file}")
+
 # =====================================================
 # Step 5: Generate Negative Samples
 # =====================================================
