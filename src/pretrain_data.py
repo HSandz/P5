@@ -1013,6 +1013,24 @@ class P5_Amazon_Dataset(Dataset):
                 random.shuffle(candidate_samples)
                 source_text = task_template['source'].format(user_id, ' , '.join(candidate_samples))
                 target_text = task_template['target'].format(target_item)
+            elif task_template['id'] == '5-9' or task_template['id'] == '5-10':
+                # Templates 5-9 and 5-10 for MovieLens (choose from 100 candidates)
+                user_seq = self.user_items[user_id]
+                candidate_samples = []
+                candidate_num = 99
+                while len(candidate_samples) < candidate_num:
+                    if self.sample_type == 'random':
+                        sample_ids = np.random.choice(self.all_item, candidate_num, replace=False)
+                    else:
+                        sample_ids = np.random.choice(self.all_item, candidate_num, replace=False, p=self.probability)
+                    sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
+                    candidate_samples.extend(sample_ids)
+                candidate_samples = candidate_samples[:candidate_num]
+                candidate_samples.extend([target_item])
+                random.shuffle(candidate_samples)
+                candidates_str = ' , '.join(candidate_samples)
+                source_text = task_template['source'].format(candidates_str, user_id)
+                target_text = task_template['target'].format(target_item)
             else:
                 raise NotImplementedError
                 
