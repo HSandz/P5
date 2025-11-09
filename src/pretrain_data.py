@@ -128,12 +128,29 @@ class P5_Amazon_Dataset(Dataset):
         
         self.user_id2name = load_pickle(os.path.join('data', split, 'user_id2name.pkl'))
         
-        self.meta_data = []
-        for meta in parse(os.path.join('data', split, 'meta.json.gz')):
-            self.meta_data.append(meta)
-        self.meta_dict = {}
-        for i, meta_item in enumerate(self.meta_data):
-            self.meta_dict[meta_item['asin']] = i
+        # Load metadata - handle both Amazon format (dict with 'asin') and MovieLens format (dict with numeric keys)
+        is_movielens = split in ['ml100k', 'ml1m', 'ml10m', 'ml20m']
+        
+        if is_movielens:
+            # MovieLens: meta.json.gz is a dict with item_id as keys
+            with gzip.open(os.path.join('data', split, 'meta.json.gz'), 'rt', encoding='utf-8') as f:
+                meta_dict_raw = json.load(f)
+            # Convert to list format for compatibility
+            self.meta_data = []
+            self.meta_dict = {}
+            for item_id_str, meta_item in meta_dict_raw.items():
+                idx = len(self.meta_data)
+                self.meta_data.append(meta_item)
+                # Use item_id (string) as key for meta_dict
+                self.meta_dict[item_id_str] = idx
+        else:
+            # Amazon/Yelp: meta.json.gz is line-by-line JSON with 'asin' field
+            self.meta_data = []
+            for meta in parse(os.path.join('data', split, 'meta.json.gz')):
+                self.meta_data.append(meta)
+            self.meta_dict = {}
+            for i, meta_item in enumerate(self.meta_data):
+                self.meta_dict[meta_item['asin']] = i
             
         print('compute_datum_info')
         self.total_length = 0

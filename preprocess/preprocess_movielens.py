@@ -376,10 +376,13 @@ def load_all_ratings():
                 user_id = data_maps['user2id'][user]
                 item_id = data_maps['item2id'][item]
                 
+                # Use Amazon-compatible field names for P5 compatibility
                 rating_data.append({
-                    'user': user_id,
-                    'item': item_id,
-                    'rating': rating,
+                    'reviewerID': user,      # Keep original ID for lookup
+                    'asin': item,            # Keep original ID for lookup  
+                    'user_id': user_id,      # Mapped ID
+                    'item_id': item_id,      # Mapped ID
+                    'overall': rating,       # Rating field (Amazon uses 'overall')
                     'timestamp': timestamp
                 })
     
@@ -398,8 +401,8 @@ user_mention_dict = defaultdict(list)
 item_mention_dict = defaultdict(list)
 
 for i in indices:
-    user = rating_data[i]['user']
-    item = rating_data[i]['item']
+    user = rating_data[i]['user_id']
+    item = rating_data[i]['item_id']
     user_mention_dict[user].append(i)
     item_mention_dict[item].append(i)
 
