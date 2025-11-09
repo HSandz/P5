@@ -39,9 +39,6 @@ class P5Pretraining(P5):
 
         loss = loss.sum(dim=1) / lm_mask.sum(dim=1).clamp(min=1)
 
-        task_counts = {task: 0 for task in self.losses}
-        task_loss = {task: 0 for task in self.losses}
-
         results = {}
 
         results['loss'] = (loss * loss_weights).mean()
@@ -52,6 +49,9 @@ class P5Pretraining(P5):
         task_loss = {task: 0 for task in self.losses}
 
         for _loss, task in zip(loss.detach(), batch['task']):
+            if task not in task_loss:
+                task_loss[task] = 0
+                task_counts[task] = 0
             task_loss[task] += _loss
             task_counts[task] += 1
 
@@ -99,6 +99,9 @@ class P5Pretraining(P5):
         task_loss = {task: 0 for task in self.losses}
 
         for _loss, task in zip(loss.detach(), batch['task']):
+            if task not in task_loss:
+                task_loss[task] = 0
+                task_counts[task] = 0
             task_loss[task] += _loss
             task_counts[task] += 1
 
