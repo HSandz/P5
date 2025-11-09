@@ -272,7 +272,7 @@ class P5_Amazon_Dataset(Dataset):
                 source_text = task_template['source'].format(self.user2id[rating_datum['reviewerID']], self.item2id[rating_datum['asin']])
                 target_text = task_template['target'].format(self.gaussian_sampling(rating_datum))
             elif task_template['id'] == '1-2':
-                if 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
+                if rating_datum['asin'] in self.meta_dict and 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
                     title = self.meta_data[self.meta_dict[rating_datum['asin']]]['title']
                 else:
                     title = 'unknown title'
@@ -295,7 +295,7 @@ class P5_Amazon_Dataset(Dataset):
                 else:
                     target_text = task_template['target'].format('dislike')
             elif task_template['id'] == '1-5':
-                if 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
+                if rating_datum['asin'] in self.meta_dict and 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
                     title = self.meta_data[self.meta_dict[rating_datum['asin']]]['title']
                 else:
                     title = 'unknown title'
@@ -313,7 +313,7 @@ class P5_Amazon_Dataset(Dataset):
                     user_desc = rating_datum['reviewerName']
                 else:
                     user_desc = rating_datum['reviewerID']
-                if 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
+                if rating_datum['asin'] in self.meta_dict and 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
                     title = self.meta_data[self.meta_dict[rating_datum['asin']]]['title']
                 else:
                     title = 'unknown title'
@@ -325,7 +325,8 @@ class P5_Amazon_Dataset(Dataset):
                     user_desc = rating_datum['reviewerName']
                 else:
                     user_desc = rating_datum['reviewerID']
-                if 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
+                # Safe metadata access
+                if rating_datum['asin'] in self.meta_dict and 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
                     title = self.meta_data[self.meta_dict[rating_datum['asin']]]['title']
                 else:
                     title = 'unknown title'
@@ -342,7 +343,7 @@ class P5_Amazon_Dataset(Dataset):
                     user_desc = rating_datum['reviewerName']
                 else:
                     user_desc = rating_datum['reviewerID']
-                if 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
+                if rating_datum['asin'] in self.meta_dict and 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
                     title = self.meta_data[self.meta_dict[rating_datum['asin']]]['title']
                 else:
                     title = 'unknown title'
@@ -356,7 +357,7 @@ class P5_Amazon_Dataset(Dataset):
                     user_desc = rating_datum['reviewerName']
                 else:
                     user_desc = rating_datum['reviewerID']
-                if 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
+                if rating_datum['asin'] in self.meta_dict and 'title' in self.meta_data[self.meta_dict[rating_datum['asin']]]:
                     title = self.meta_data[self.meta_dict[rating_datum['asin']]]['title']
                 else:
                     title = 'unknown title'
