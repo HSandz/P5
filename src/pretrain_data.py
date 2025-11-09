@@ -54,6 +54,7 @@ class P5_Amazon_Dataset(Dataset):
         
         # MovieLens datasets only have rating data, no reviews or explanations
         is_movielens = split in ['ml100k', 'ml1m', 'ml10m', 'ml20m']
+        self.is_movielens = is_movielens  # Store as instance variable
         
         if self.mode == 'train':
             if is_movielens:
@@ -365,184 +366,382 @@ class P5_Amazon_Dataset(Dataset):
                 raise NotImplementedError
             
         elif task_name == 'sequential':
-            sequential_datum = self.sequential_data[datum_idx]
-            sequence = sequential_datum.split()
-            user_id = sequence[0]
-            user_desc = self.user_id2name[user_id]
-            if self.mode == 'train':
-                end_candidates = [_ for _ in range(max(2, len(sequence) - 6), len(sequence) - 3)]
-                end_index = random.randint(0, len(end_candidates)-1)
-                end_pos = end_candidates[end_index]
-                start_candidates = [_ for _ in range(1, min(4, end_pos))]
-                start_index = random.randint(0, len(start_candidates)-1)
-                start_pos = start_candidates[start_index]
-                purchase_history = sequence[start_pos:end_pos+1] # sample a history sequence from the full user purchase history
-                target_item = sequence[end_pos+1]
-            elif self.mode == 'val':
-                purchase_history = sequence[1:-2]
-                target_item = sequence[-2]
-            elif self.mode == 'test':
-                purchase_history = sequence[1:-1]
-                target_item = sequence[-1]
-            else:
-                raise NotImplementedError
-            
-            task_candidates = self.task_list[task_name]
-            task_idx = random.randint(0, len(task_candidates)-1) # random choose the task index for task_candidates
-            task_template = self.all_tasks['sequential'][task_candidates[task_idx]]
-            assert task_template['task'] == 'sequential'
-            
-            if task_template['id'] == '2-1':
-                rand_prob = random.random()
-                if rand_prob > 0.5:
-                    source_text = task_template['source'].format(user_id, ' , '.join(purchase_history))
-                else:
-                    source_text = task_template['source'].format(user_id, ' -> '.join(purchase_history))
-                target_text = task_template['target'].format(target_item)
-            elif task_template['id'] == '2-2':
-                rand_prob = random.random()
-                if rand_prob > 0.5:
-                    source_text = task_template['source'].format(user_id, ' , '.join(purchase_history))
-                else:
-                    source_text = task_template['source'].format(user_id, ' -> '.join(purchase_history))
-                target_text = task_template['target'].format(target_item)
-            elif task_template['id'] == '2-3':
-                rand_prob = random.random()
-                if rand_prob > 0.5:
-                    source_text = task_template['source'].format(user_id, ' , '.join(purchase_history))
-                else:
-                    source_text = task_template['source'].format(user_id, ' -> '.join(purchase_history))
-                target_text = task_template['target'].format(target_item)
-            elif task_template['id'] == '2-4':
-                rand_prob = random.random()
-                if rand_prob > 0.5:
-                    source_text = task_template['source'].format(user_desc, ' , '.join(purchase_history))
-                else:
-                    source_text = task_template['source'].format(user_desc, ' -> '.join(purchase_history))
-                target_text = task_template['target'].format(target_item)
-            elif task_template['id'] == '2-5':
-                rand_prob = random.random()
-                if rand_prob > 0.5:
-                    source_text = task_template['source'].format(user_desc, ' , '.join(purchase_history))
-                else:
-                    source_text = task_template['source'].format(user_desc, ' -> '.join(purchase_history))
-                target_text = task_template['target'].format(target_item)
-            elif task_template['id'] == '2-6':
-                rand_prob = random.random()
-                if rand_prob > 0.5:
-                    source_text = task_template['source'].format(user_desc, ' , '.join(purchase_history))
-                else:
-                    source_text = task_template['source'].format(user_desc, ' -> '.join(purchase_history))
-                target_text = task_template['target'].format(target_item)
-            elif task_template['id'] == '2-7' or task_template['id'] == '2-9':
-                if self.mode in ['train', 'val']:
-                    user_seq = self.user_items[user_id]
-                    candidate_samples = []
-                    candidate_num = 99
-                    while len(candidate_samples) < candidate_num:
-                        if self.sample_type == 'random':
-                            sample_ids = np.random.choice(self.all_item, candidate_num, replace=False)
-                        else:
-                            sample_ids = np.random.choice(self.all_item, candidate_num, replace=False, p=self.probability)
-                        sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
-                        candidate_samples.extend(sample_ids)
-                    candidate_samples = candidate_samples[:candidate_num]
+            # ========== MovieLens-specific sequential handling ==========
+            if self.is_movielens:
+                sequential_datum = self.sequential_data[datum_idx]
+                sequence = sequential_datum.split()
+                user_id = sequence[0]
+                
+                if self.mode == 'train':
+                    end_candidates = [_ for _ in range(max(2, len(sequence) - 6), len(sequence) - 3)]
+                    end_index = random.randint(0, len(end_candidates)-1)
+                    end_pos = end_candidates[end_index]
+                    start_candidates = [_ for _ in range(1, min(4, end_pos))]
+                    start_index = random.randint(0, len(start_candidates)-1)
+                    start_pos = start_candidates[start_index]
+                    purchase_history = sequence[start_pos:end_pos+1]
+                    target_item = sequence[end_pos+1]
+                elif self.mode == 'val':
+                    purchase_history = sequence[1:-2]
+                    target_item = sequence[-2]
                 elif self.mode == 'test':
-                    assert user_id == self.negative_samples[int(user_id)-1].split(' ', 1)[0]
-                    candidate_samples = self.negative_samples[int(user_id)-1].split(' ', 1)[1].split(' ')
+                    purchase_history = sequence[1:-1]
+                    target_item = sequence[-1]
                 else:
                     raise NotImplementedError
-                candidate_samples.extend([target_item])
-                random.shuffle(candidate_samples)
+                
+                # Limit history length
+                if len(purchase_history) > 10:
+                    purchase_history = purchase_history[-10:]
+                
+                task_candidates = self.task_list[task_name]
+                task_idx = random.randint(0, len(task_candidates)-1)
+                task_template = self.all_tasks['sequential'][task_candidates[task_idx]]
+                assert task_template['task'] == 'sequential'
+                
+                # Random separator choice
                 rand_prob = random.random()
                 if rand_prob > 0.5:
-                    source_text = task_template['source'].format(user_id, ' , '.join(purchase_history), ' , '.join(candidate_samples))
+                    separator = ' , '
                 else:
-                    source_text = task_template['source'].format(user_id, ' -> '.join(purchase_history), ' , '.join(candidate_samples))
-                target_text = task_template['target'].format(target_item)
-            elif task_template['id'] == '2-8' or task_template['id'] == '2-10':
-                if self.mode in ['train', 'val']:
-                    user_seq = self.user_items[user_id]
-                    candidate_samples = []
-                    candidate_num = 99
-                    while len(candidate_samples) < candidate_num:
-                        if self.sample_type == 'random':
-                            sample_ids = np.random.choice(self.all_item, candidate_num, replace=False)
-                        else:
-                            sample_ids = np.random.choice(self.all_item, candidate_num, replace=False, p=self.probability)
-                        sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
-                        candidate_samples.extend(sample_ids)
-                    candidate_samples = candidate_samples[:candidate_num]
+                    separator = ' -> '
+                history_str = separator.join(purchase_history)
+                
+                template_id = task_template['id']
+                
+                # Subgroup 2-1: Direct prediction (2-1 to 2-5) - 2 args
+                if template_id in ['2-1', '2-2', '2-4', '2-5']:
+                    source_text = task_template['source'].format(user_id, history_str)
+                    target_text = task_template['target'].format(target_item)
+                elif template_id == '2-3':
+                    # Reversed order: history, user_id
+                    source_text = task_template['source'].format(history_str, user_id)
+                    target_text = task_template['target'].format(target_item)
+                
+                # Subgroup 2-2: Choose from candidates (2-6 to 2-10) - 3 args
+                elif template_id in ['2-6', '2-7', '2-10']:
+                    # Get 99 negative candidates
+                    if self.mode in ['train', 'val']:
+                        user_seq = self.user_items[user_id]
+                        candidate_samples = []
+                        candidate_num = 99
+                        while len(candidate_samples) < candidate_num:
+                            if self.sample_type == 'random':
+                                sample_ids = np.random.choice(self.all_item, candidate_num, replace=False)
+                            else:
+                                sample_ids = np.random.choice(self.all_item, candidate_num, replace=False, p=self.probability)
+                            sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
+                            candidate_samples.extend(sample_ids)
+                        candidate_samples = candidate_samples[:candidate_num]
+                    elif self.mode == 'test':
+                        assert user_id == self.negative_samples[int(user_id)-1].split(' ', 1)[0]
+                        candidate_samples = self.negative_samples[int(user_id)-1].split(' ', 1)[1].split(' ')
+                    else:
+                        raise NotImplementedError
+                    
+                    candidate_samples.extend([target_item])
+                    random.shuffle(candidate_samples)
+                    candidates_str = ' , '.join(candidate_samples)
+                    
+                    source_text = task_template['source'].format(user_id, history_str, candidates_str)
+                    target_text = task_template['target'].format(target_item)
+                    
+                elif template_id == '2-8':
+                    # Different arg order: candidates, user_id, history
+                    if self.mode in ['train', 'val']:
+                        user_seq = self.user_items[user_id]
+                        candidate_samples = []
+                        candidate_num = 99
+                        while len(candidate_samples) < candidate_num:
+                            if self.sample_type == 'random':
+                                sample_ids = np.random.choice(self.all_item, candidate_num, replace=False)
+                            else:
+                                sample_ids = np.random.choice(self.all_item, candidate_num, replace=False, p=self.probability)
+                            sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
+                            candidate_samples.extend(sample_ids)
+                        candidate_samples = candidate_samples[:candidate_num]
+                    elif self.mode == 'test':
+                        assert user_id == self.negative_samples[int(user_id)-1].split(' ', 1)[0]
+                        candidate_samples = self.negative_samples[int(user_id)-1].split(' ', 1)[1].split(' ')
+                    else:
+                        raise NotImplementedError
+                    
+                    candidate_samples.extend([target_item])
+                    random.shuffle(candidate_samples)
+                    candidates_str = ' , '.join(candidate_samples)
+                    
+                    source_text = task_template['source'].format(candidates_str, user_id, history_str)
+                    target_text = task_template['target'].format(target_item)
+                    
+                elif template_id == '2-9':
+                    # Different arg order: history, candidates, user_id
+                    if self.mode in ['train', 'val']:
+                        user_seq = self.user_items[user_id]
+                        candidate_samples = []
+                        candidate_num = 99
+                        while len(candidate_samples) < candidate_num:
+                            if self.sample_type == 'random':
+                                sample_ids = np.random.choice(self.all_item, candidate_num, replace=False)
+                            else:
+                                sample_ids = np.random.choice(self.all_item, candidate_num, replace=False, p=self.probability)
+                            sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
+                            candidate_samples.extend(sample_ids)
+                        candidate_samples = candidate_samples[:candidate_num]
+                    elif self.mode == 'test':
+                        assert user_id == self.negative_samples[int(user_id)-1].split(' ', 1)[0]
+                        candidate_samples = self.negative_samples[int(user_id)-1].split(' ', 1)[1].split(' ')
+                    else:
+                        raise NotImplementedError
+                    
+                    candidate_samples.extend([target_item])
+                    random.shuffle(candidate_samples)
+                    candidates_str = ' , '.join(candidate_samples)
+                    
+                    source_text = task_template['source'].format(history_str, candidates_str, user_id)
+                    target_text = task_template['target'].format(target_item)
+                
+                # Subgroup 2-3: Yes/No questions (2-11 to 2-15) - 3 args with positive/negative sampling
+                elif template_id in ['2-11', '2-14']:
+                    # Format: user_id, history, item
+                    rand_prob = random.random()
+                    if rand_prob > 0.5:
+                        # Positive example
+                        source_text = task_template['source'].format(user_id, history_str, target_item)
+                        target_text = task_template['target'].format('yes')
+                    else:
+                        # Negative example
+                        user_seq = self.user_items[user_id]
+                        candidate_samples = []
+                        while len(candidate_samples) < 1:
+                            if self.sample_type == 'random':
+                                sample_ids = np.random.choice(self.all_item, 1, replace=False)
+                            else:
+                                sample_ids = np.random.choice(self.all_item, 1, replace=False, p=self.probability)
+                            sample_ids = [str(item) for item in sample_ids if item not in user_seq]
+                            candidate_samples.extend(sample_ids)
+                        source_text = task_template['source'].format(user_id, history_str, candidate_samples[0])
+                        target_text = task_template['target'].format('no')
+                        
+                elif template_id == '2-12':
+                    # Format: item, user_id, history
+                    rand_prob = random.random()
+                    if rand_prob > 0.5:
+                        source_text = task_template['source'].format(target_item, user_id, history_str)
+                        target_text = task_template['target'].format('yes')
+                    else:
+                        user_seq = self.user_items[user_id]
+                        candidate_samples = []
+                        while len(candidate_samples) < 1:
+                            if self.sample_type == 'random':
+                                sample_ids = np.random.choice(self.all_item, 1, replace=False)
+                            else:
+                                sample_ids = np.random.choice(self.all_item, 1, replace=False, p=self.probability)
+                            sample_ids = [str(item) for item in sample_ids if item not in user_seq]
+                            candidate_samples.extend(sample_ids)
+                        source_text = task_template['source'].format(candidate_samples[0], user_id, history_str)
+                        target_text = task_template['target'].format('no')
+                        
+                elif template_id in ['2-13', '2-15']:
+                    # Format: history, user_id, item
+                    rand_prob = random.random()
+                    if rand_prob > 0.5:
+                        source_text = task_template['source'].format(history_str, user_id, target_item)
+                        target_text = task_template['target'].format('yes')
+                    else:
+                        user_seq = self.user_items[user_id]
+                        candidate_samples = []
+                        while len(candidate_samples) < 1:
+                            if self.sample_type == 'random':
+                                sample_ids = np.random.choice(self.all_item, 1, replace=False)
+                            else:
+                                sample_ids = np.random.choice(self.all_item, 1, replace=False, p=self.probability)
+                            sample_ids = [str(item) for item in sample_ids if item not in user_seq]
+                            candidate_samples.extend(sample_ids)
+                        source_text = task_template['source'].format(history_str, user_id, candidate_samples[0])
+                        target_text = task_template['target'].format('no')
+                else:
+                    raise NotImplementedError(f"Template ID {template_id} not implemented for MovieLens")
+            
+            # ========== Amazon/Yelp sequential handling (original logic) ==========
+            else:
+                sequential_datum = self.sequential_data[datum_idx]
+                sequence = sequential_datum.split()
+                user_id = sequence[0]
+                user_desc = self.user_id2name[user_id]
+                if self.mode == 'train':
+                    end_candidates = [_ for _ in range(max(2, len(sequence) - 6), len(sequence) - 3)]
+                    end_index = random.randint(0, len(end_candidates)-1)
+                    end_pos = end_candidates[end_index]
+                    start_candidates = [_ for _ in range(1, min(4, end_pos))]
+                    start_index = random.randint(0, len(start_candidates)-1)
+                    start_pos = start_candidates[start_index]
+                    purchase_history = sequence[start_pos:end_pos+1] # sample a history sequence from the full user purchase history
+                    target_item = sequence[end_pos+1]
+                elif self.mode == 'val':
+                    purchase_history = sequence[1:-2]
+                    target_item = sequence[-2]
                 elif self.mode == 'test':
-                    assert user_id == self.negative_samples[int(user_id)-1].split(' ', 1)[0]
-                    candidate_samples = self.negative_samples[int(user_id)-1].split(' ', 1)[1].split(' ')
+                    purchase_history = sequence[1:-1]
+                    target_item = sequence[-1]
                 else:
                     raise NotImplementedError
-                candidate_samples.extend([target_item])
-                random.shuffle(candidate_samples)
-                rand_prob = random.random()
-                if rand_prob > 0.5:
-                    source_text = task_template['source'].format(user_desc, ' , '.join(purchase_history), ' , '.join(candidate_samples))
+                
+                task_candidates = self.task_list[task_name]
+                task_idx = random.randint(0, len(task_candidates)-1) # random choose the task index for task_candidates
+                task_template = self.all_tasks['sequential'][task_candidates[task_idx]]
+                assert task_template['task'] == 'sequential'
+                
+                if task_template['id'] == '2-1':
+                    rand_prob = random.random()
+                    if rand_prob > 0.5:
+                        source_text = task_template['source'].format(user_id, ' , '.join(purchase_history))
+                    else:
+                        source_text = task_template['source'].format(user_id, ' -> '.join(purchase_history))
+                    target_text = task_template['target'].format(target_item)
+                elif task_template['id'] == '2-2':
+                    rand_prob = random.random()
+                    if rand_prob > 0.5:
+                        source_text = task_template['source'].format(user_id, ' , '.join(purchase_history))
+                    else:
+                        source_text = task_template['source'].format(user_id, ' -> '.join(purchase_history))
+                    target_text = task_template['target'].format(target_item)
+                elif task_template['id'] == '2-3':
+                    rand_prob = random.random()
+                    if rand_prob > 0.5:
+                        source_text = task_template['source'].format(user_id, ' , '.join(purchase_history))
+                    else:
+                        source_text = task_template['source'].format(user_id, ' -> '.join(purchase_history))
+                    target_text = task_template['target'].format(target_item)
+                elif task_template['id'] == '2-4':
+                    rand_prob = random.random()
+                    if rand_prob > 0.5:
+                        source_text = task_template['source'].format(user_desc, ' , '.join(purchase_history))
+                    else:
+                        source_text = task_template['source'].format(user_desc, ' -> '.join(purchase_history))
+                    target_text = task_template['target'].format(target_item)
+                elif task_template['id'] == '2-5':
+                    rand_prob = random.random()
+                    if rand_prob > 0.5:
+                        source_text = task_template['source'].format(user_desc, ' , '.join(purchase_history))
+                    else:
+                        source_text = task_template['source'].format(user_desc, ' -> '.join(purchase_history))
+                    target_text = task_template['target'].format(target_item)
+                elif task_template['id'] == '2-6':
+                    rand_prob = random.random()
+                    if rand_prob > 0.5:
+                        source_text = task_template['source'].format(user_desc, ' , '.join(purchase_history))
+                    else:
+                        source_text = task_template['source'].format(user_desc, ' -> '.join(purchase_history))
+                    target_text = task_template['target'].format(target_item)
+                elif task_template['id'] == '2-7' or task_template['id'] == '2-9':
+                    if self.mode in ['train', 'val']:
+                        user_seq = self.user_items[user_id]
+                        candidate_samples = []
+                        candidate_num = 99
+                        while len(candidate_samples) < candidate_num:
+                            if self.sample_type == 'random':
+                                sample_ids = np.random.choice(self.all_item, candidate_num, replace=False)
+                            else:
+                                sample_ids = np.random.choice(self.all_item, candidate_num, replace=False, p=self.probability)
+                            sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
+                            candidate_samples.extend(sample_ids)
+                        candidate_samples = candidate_samples[:candidate_num]
+                    elif self.mode == 'test':
+                        assert user_id == self.negative_samples[int(user_id)-1].split(' ', 1)[0]
+                        candidate_samples = self.negative_samples[int(user_id)-1].split(' ', 1)[1].split(' ')
+                    else:
+                        raise NotImplementedError
+                    candidate_samples.extend([target_item])
+                    random.shuffle(candidate_samples)
+                    rand_prob = random.random()
+                    if rand_prob > 0.5:
+                        source_text = task_template['source'].format(user_id, ' , '.join(purchase_history), ' , '.join(candidate_samples))
+                    else:
+                        source_text = task_template['source'].format(user_id, ' -> '.join(purchase_history), ' , '.join(candidate_samples))
+                    target_text = task_template['target'].format(target_item)
+                elif task_template['id'] == '2-8' or task_template['id'] == '2-10':
+                    if self.mode in ['train', 'val']:
+                        user_seq = self.user_items[user_id]
+                        candidate_samples = []
+                        candidate_num = 99
+                        while len(candidate_samples) < candidate_num:
+                            if self.sample_type == 'random':
+                                sample_ids = np.random.choice(self.all_item, candidate_num, replace=False)
+                            else:
+                                sample_ids = np.random.choice(self.all_item, candidate_num, replace=False, p=self.probability)
+                            sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
+                            candidate_samples.extend(sample_ids)
+                        candidate_samples = candidate_samples[:candidate_num]
+                    elif self.mode == 'test':
+                        assert user_id == self.negative_samples[int(user_id)-1].split(' ', 1)[0]
+                        candidate_samples = self.negative_samples[int(user_id)-1].split(' ', 1)[1].split(' ')
+                    else:
+                        raise NotImplementedError
+                    candidate_samples.extend([target_item])
+                    random.shuffle(candidate_samples)
+                    rand_prob = random.random()
+                    if rand_prob > 0.5:
+                        source_text = task_template['source'].format(user_desc, ' , '.join(purchase_history), ' , '.join(candidate_samples))
+                    else:
+                        source_text = task_template['source'].format(user_desc, ' -> '.join(purchase_history), ' , '.join(candidate_samples))
+                    target_text = task_template['target'].format(target_item)
+                elif task_template['id'] == '2-11':
+                    symbol_prob = random.random()
+                    if symbol_prob > 0.5:
+                        symbol = ' , '
+                    else:
+                        symbol = ' -> '
+                    rand_prob = random.random()
+                    if rand_prob > 0.5:
+                        source_text = task_template['source'].format(user_id, symbol.join(purchase_history), target_item)
+                        target_text = task_template['target'].format('yes')
+                    else:
+                        user_seq = self.user_items[user_id]
+                        candidate_samples = []
+                        candidate_num = 1
+                        while len(candidate_samples) < candidate_num:
+                            if self.sample_type == 'random':
+                                sample_ids = np.random.choice(self.all_item, candidate_num, replace=False)
+                            else:
+                                sample_ids = np.random.choice(self.all_item, candidate_num, replace=False, p=self.probability)
+                            sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
+                            candidate_samples.extend(sample_ids)
+                        candidate_samples = candidate_samples[:candidate_num]
+                        source_text = task_template['source'].format(user_id, symbol.join(purchase_history), candidate_samples[0])
+                        target_text = task_template['target'].format('no')
+                elif task_template['id'] == '2-12':
+                    symbol_prob = random.random()
+                    if symbol_prob > 0.5:
+                        symbol = ' , '
+                    else:
+                        symbol = ' -> '
+                    rand_prob = random.random()
+                    if rand_prob > 0.5:
+                        source_text = task_template['source'].format(user_desc, symbol.join(purchase_history), target_item)
+                        target_text = task_template['target'].format('yes')
+                    else:
+                        user_seq = self.user_items[user_id]
+                        candidate_samples = []
+                        candidate_num = 1
+                        while len(candidate_samples) < candidate_num:
+                            if self.sample_type == 'random':
+                                sample_ids = np.random.choice(self.all_item, candidate_num, replace=False)
+                            else:
+                                sample_ids = np.random.choice(self.all_item, candidate_num, replace=False, p=self.probability)
+                            sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
+                            candidate_samples.extend(sample_ids)
+                        candidate_samples = candidate_samples[:candidate_num]
+                        source_text = task_template['source'].format(user_desc, symbol.join(purchase_history), candidate_samples[0])
+                        target_text = task_template['target'].format('no')
+                elif task_template['id'] == '2-13':
+                    rand_prob = random.random()
+                    if rand_prob > 0.5:
+                        source_text = task_template['source'].format(user_desc, ' , '.join(purchase_history))
+                    else:
+                        source_text = task_template['source'].format(user_desc, ' -> '.join(purchase_history))
+                    target_text = task_template['target'].format(target_item)
                 else:
-                    source_text = task_template['source'].format(user_desc, ' -> '.join(purchase_history), ' , '.join(candidate_samples))
-                target_text = task_template['target'].format(target_item)
-            elif task_template['id'] == '2-11':
-                symbol_prob = random.random()
-                if symbol_prob > 0.5:
-                    symbol = ' , '
-                else:
-                    symbol = ' -> '
-                rand_prob = random.random()
-                if rand_prob > 0.5:
-                    source_text = task_template['source'].format(user_id, symbol.join(purchase_history), target_item)
-                    target_text = task_template['target'].format('yes')
-                else:
-                    user_seq = self.user_items[user_id]
-                    candidate_samples = []
-                    candidate_num = 1
-                    while len(candidate_samples) < candidate_num:
-                        if self.sample_type == 'random':
-                            sample_ids = np.random.choice(self.all_item, candidate_num, replace=False)
-                        else:
-                            sample_ids = np.random.choice(self.all_item, candidate_num, replace=False, p=self.probability)
-                        sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
-                        candidate_samples.extend(sample_ids)
-                    candidate_samples = candidate_samples[:candidate_num]
-                    source_text = task_template['source'].format(user_id, symbol.join(purchase_history), candidate_samples[0])
-                    target_text = task_template['target'].format('no')
-            elif task_template['id'] == '2-12':
-                symbol_prob = random.random()
-                if symbol_prob > 0.5:
-                    symbol = ' , '
-                else:
-                    symbol = ' -> '
-                rand_prob = random.random()
-                if rand_prob > 0.5:
-                    source_text = task_template['source'].format(user_desc, symbol.join(purchase_history), target_item)
-                    target_text = task_template['target'].format('yes')
-                else:
-                    user_seq = self.user_items[user_id]
-                    candidate_samples = []
-                    candidate_num = 1
-                    while len(candidate_samples) < candidate_num:
-                        if self.sample_type == 'random':
-                            sample_ids = np.random.choice(self.all_item, candidate_num, replace=False)
-                        else:
-                            sample_ids = np.random.choice(self.all_item, candidate_num, replace=False, p=self.probability)
-                        sample_ids = [str(item) for item in sample_ids if item not in user_seq and item not in candidate_samples]
-                        candidate_samples.extend(sample_ids)
-                    candidate_samples = candidate_samples[:candidate_num]
-                    source_text = task_template['source'].format(user_desc, symbol.join(purchase_history), candidate_samples[0])
-                    target_text = task_template['target'].format('no')
-            elif task_template['id'] == '2-13':
-                rand_prob = random.random()
-                if rand_prob > 0.5:
-                    source_text = task_template['source'].format(user_desc, ' , '.join(purchase_history))
-                else:
-                    source_text = task_template['source'].format(user_desc, ' -> '.join(purchase_history))
-                target_text = task_template['target'].format(target_item)
-            else:
-                raise NotImplementedError
+                    raise NotImplementedError
         
         elif task_name == 'explanation':
             exp_datum = self.exp_data[datum_idx]
