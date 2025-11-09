@@ -244,7 +244,7 @@ template['id'] = "1-10"
 
 task_subgroup_1["1-10"] = template
 
-all_tasks['1'] = task_subgroup_1
+all_tasks['rating'] = task_subgroup_1
 
 
 # =====================================================
@@ -603,7 +603,7 @@ template['id'] = "2-15"
 
 task_subgroup_2["2-15"] = template
 
-all_tasks['2'] = task_subgroup_2
+all_tasks['sequential'] = task_subgroup_2
 
 
 # =====================================================
@@ -845,4 +845,4 @@ template['id'] = "5-10"
 
 task_subgroup_5["5-10"] = template
 
-all_tasks['5'] = task_subgroup_5
+all_tasks['traditional'] = task_subgroup_5
