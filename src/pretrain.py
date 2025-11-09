@@ -24,7 +24,7 @@ _use_apex = False
 
 # Check if Pytorch version >= 1.6 to switch between Native AMP and Apex
 if version.parse(torch.__version__) < version.parse("1.6"):
-    from transormers.file_utils import is_apex_available
+    from transformers.file_utils import is_apex_available
     if is_apex_available():
         from apex import amp
     _use_apex = True
@@ -348,6 +348,11 @@ def main_worker(gpu, args):
         'review': ['4-1', '4-2'],
         'traditional': ['5-1', '5-2', '5-3', '5-4', '5-5', '5-6', '5-7']
         }
+    elif args.train == 'ml100k':
+        train_task_list = {'rating': ['1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '1-7', '1-8', '1-9', '1-10'],
+        'sequential': ['2-1', '2-2', '2-3', '2-4', '2-5', '2-6', '2-7', '2-8', '2-9', '2-10', '2-11', '2-12', '2-13', '2-14', '2-15'],
+        'traditional': ['5-1', '5-2', '5-3', '5-4', '5-5', '5-6', '5-7', '5-8', '5-9', '5-10']
+        }
     else:
         train_task_list = {'rating': ['1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '1-7', '1-8', '1-9'],
         'sequential': ['2-1', '2-2', '2-3', '2-4', '2-5', '2-6', '2-7', '2-8', '2-9', '2-10', '2-11', '2-12'],
@@ -357,7 +362,10 @@ def main_worker(gpu, args):
         }
     # define sampling numbers for each group of personalized prompts (see pretrain_data.py)
     # if greater than 1, a data sample will be used for multiple times with different prompts in certain task family
-    train_sample_numbers = {'rating': 1, 'sequential': (5, 5, 10), 'explanation': 1, 'review': 1, 'traditional': (10, 5)}
+    if args.train == 'ml100k':
+        train_sample_numbers = {'rating': 1, 'sequential': (5, 5, 5), 'traditional': (10, 5)}
+    else:
+        train_sample_numbers = {'rating': 1, 'sequential': (5, 5, 10), 'explanation': 1, 'review': 1, 'traditional': (10, 5)}
     train_loader = get_loader(
         args,
         train_task_list,
@@ -378,6 +386,11 @@ def main_worker(gpu, args):
         'review': ['4-1', '4-2'],
         'traditional': ['5-1', '5-2', '5-3', '5-4', '5-5', '5-6', '5-7']
         }
+    elif args.valid == 'ml100k':
+        val_task_list = {'rating': ['1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '1-7', '1-8', '1-9', '1-10'],
+        'sequential': ['2-1', '2-2', '2-3', '2-4', '2-5', '2-6', '2-7', '2-8', '2-9', '2-10', '2-11', '2-12', '2-13', '2-14', '2-15'],
+        'traditional': ['5-1', '5-2', '5-3', '5-4', '5-5', '5-6', '5-7', '5-8', '5-9', '5-10']
+        }
     else:
         val_task_list = {'rating': ['1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '1-7', '1-8', '1-9'],
         'sequential': ['2-1', '2-2', '2-3', '2-4', '2-5', '2-6', '2-7', '2-8', '2-9', '2-10', '2-11', '2-12'],
@@ -385,7 +398,10 @@ def main_worker(gpu, args):
         'review': ['4-1', '4-2', '4-3'],
         'traditional': ['5-1', '5-2', '5-3', '5-4', '5-5', '5-6', '5-7']
         }
-    val_sample_numbers = {'rating': 1, 'sequential': (1, 1, 1), 'explanation': 1, 'review': 1, 'traditional': (1, 1)}
+    if args.valid == 'ml100k':
+        val_sample_numbers = {'rating': 1, 'sequential': (1, 1, 1), 'traditional': (1, 1)}
+    else:
+        val_sample_numbers = {'rating': 1, 'sequential': (1, 1, 1), 'explanation': 1, 'review': 1, 'traditional': (1, 1)}
     val_loader = get_loader(
         args,
         val_task_list,
@@ -427,6 +443,8 @@ if __name__ == "__main__":
         dsets.append('sports')
     if 'yelp' in args.train:
         dsets.append('yelp')
+    if 'ml100k' in args.train:
+        dsets.append('ml100k')
     comments.append(''.join(dsets))
     if args.backbone:
         comments.append(args.backbone)

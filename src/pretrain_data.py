@@ -1764,6 +1764,19 @@ def get_loader(args, task_list, sample_numbers, split='toys', mode='train',
             split=split,
             rating_augment=False
         )
+    elif split == 'ml100k':
+        from all_movielens_templates import all_tasks as task_templates
+        
+        dataset = P5_Amazon_Dataset(
+            task_templates,
+            task_list,
+            tokenizer,
+            args,
+            sample_numbers,
+            mode=mode,
+            split=split,
+            rating_augment=False
+        )
     else:
         from all_amazon_templates import all_tasks as task_templates
 
