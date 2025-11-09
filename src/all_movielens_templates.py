@@ -156,52 +156,6 @@ task_subgroup_1["1-6"] = template
 template = {}
 '''
 Input template:
-Given user {{user_id}}'s interaction history: {{history}}, predict the rating for movie {{item_title}}.
-
-Target template:
-{{star_rating}}
-
-Metrics:
-Accuracy
-'''
-template['source'] = "Given user_{}'s interaction history : {} , predict the rating for movie {} ."
-template['target'] = "{}"
-template['task'] = "rating"
-template['source_argc'] = 3
-template['source_argv'] = ['user_id', 'history_item_titles', 'item_title']
-template['target_argc'] = 1
-template['target_argv'] = ['star_rating']
-template['id'] = "1-7"
-
-task_subgroup_1["1-7"] = template
-
-
-template = {}
-'''
-Input template:
-User {{user_id}} watched these movies: {{history}}. What rating would they give to {{item_title}}?
-
-Target template:
-{{star_rating}}
-
-Metrics:
-Accuracy
-'''
-template['source'] = "User_{} watched these movies : {} . What rating would they give to {} ?"
-template['target'] = "{}"
-template['task'] = "rating"
-template['source_argc'] = 3
-template['source_argv'] = ['user_id', 'history_item_titles', 'item_title']
-template['target_argc'] = 1
-template['target_argv'] = ['star_rating']
-template['id'] = "1-8"
-
-task_subgroup_1["1-8"] = template
-
-
-template = {}
-'''
-Input template:
 Rate the movie {{item_title}} for user {{user_id}}. (1 being lowest and 5 being highest)
 
 Target template:
@@ -217,9 +171,9 @@ template['source_argc'] = 2
 template['source_argv'] = ['item_title', 'user_id']
 template['target_argc'] = 1
 template['target_argv'] = ['star_rating']
-template['id'] = "1-9"
+template['id'] = "1-7"
 
-task_subgroup_1["1-9"] = template
+task_subgroup_1["1-7"] = template
 
 
 template = {}
@@ -240,9 +194,9 @@ template['source_argc'] = 2
 template['source_argv'] = ['user_id', 'item_title']
 template['target_argc'] = 1
 template['target_argv'] = ['yes_no']
-template['id'] = "1-10"
+template['id'] = "1-8"
 
-task_subgroup_1["1-10"] = template
+task_subgroup_1["1-8"] = template
 
 all_tasks['rating'] = task_subgroup_1
 
