@@ -64,7 +64,9 @@ class Trainer(TrainerBase):
         if args.load is not None:
             ckpt_path = args.load + '.pth'
             self.load_checkpoint(ckpt_path)
-            self.start_epoch = int(args.load.split('Epoch-')[-1])
+            # Handle both 'Epoch09' and 'Epoch-09' formats
+            epoch_str = args.load.split('Epoch')[-1].lstrip('-')
+            self.start_epoch = int(epoch_str)
 
         if self.args.from_scratch:
             self.init_weights()
